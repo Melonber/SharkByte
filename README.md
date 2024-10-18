@@ -3,5 +3,7 @@
 ## Framework: Arduino
 
 <img src="ESP32-C3-DevKitC-02-pinout-low.jpg.webp" alt="Pinout Info" width="600"/>
-## OLED Connection: 
+
+## OLED Connection:
+
 <img src="connect_oled.jpg" alt="Pinout Info" width="300"/>
