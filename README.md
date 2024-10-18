@@ -7,3 +7,7 @@
 ## OLED Connection:
 
 <img src="connect_oled.jpg" alt="Pinout Info" width="300"/>
+
+## Buttons Connection:
+<img src="buttons_scheme.jpg" alt="Pinout Info" width="300"/>
+
