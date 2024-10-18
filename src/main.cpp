@@ -165,4 +165,3 @@ if (debounceButton(MIDDLE_BUTTON)) {
     GUI_menu();
   }
 }
-
