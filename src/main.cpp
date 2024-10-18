@@ -5,6 +5,7 @@
 #include <IRremoteESP8266.h>
 #include <IRrecv.h>
 #include <IRutils.h>
+#include <WiFi.h>
 
 /* Uncomment the initialize the I2C address, uncomment only one. If you get a totally blank screen try the other */
 #define i2c_Address 0x3C // Initialize with the I2C addr 0x3C Typically eBay OLED's
@@ -29,6 +30,9 @@ int currentSelection = 0;
 const int menuItems = 4;
 
 unsigned long lastReceivedValue = 0; // Для хранения последнего полученного значения
+
+int selectedNetwork = 0; // Индекс выбранной сети
+int totalNetworks = 0;   // Количество доступных Wi-Fi сетей
 
 bool debounceButton(int pin) {
   static unsigned long lastPress = 0; // Время последнего нажатия
@@ -80,7 +84,65 @@ void GUI_menu() {
 }
 
 void show_wifi() {
-  Serial.println("Displaying wifi");
+  // Сканируем сети
+  totalNetworks = WiFi.scanNetworks();
+  Serial.println("Scanning for WiFi networks...");
+  
+  if (totalNetworks == 0) {
+    Serial.println("No networks found");
+    return;
+  }
+
+  Serial.print("Found ");
+  Serial.print(totalNetworks);
+  Serial.println(" networks.");
+
+  int displayLimit = 4; // Количество сетей для отображения на экране одновременно
+  
+  while (true) {
+    // Отображаем сети на экране
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextSize(1);
+    display.setTextColor(1);
+    
+    for (int i = 0; i < displayLimit; i++) {
+      int networkIndex = (selectedNetwork + i) % totalNetworks;
+      display.setCursor(0, i * 10); // Смещаем текст вниз на 10 пикселей
+      display.print(WiFi.SSID(networkIndex)); // Выводим название сети
+      if (networkIndex == selectedNetwork) {
+        display.print(" <"); // Выделяем выбранную сеть
+      }
+    }
+    
+    display.display();
+
+    // Проверяем нажатие кнопок
+    if (debounceButton(DOWN_BUTTON)) {
+      selectedNetwork++;
+      if (selectedNetwork >= totalNetworks) {
+        selectedNetwork = 0; // Зацикливаем скроллинг
+      }
+    }
+    
+    if (debounceButton(UP_BUTTON)) {
+      if (selectedNetwork == 0) {
+        selectedNetwork = totalNetworks - 1; // Зацикливаем вверх
+      } else {
+        selectedNetwork--;
+      }
+    }
+    
+    // Возврат в GUI при нажатии на Middle Button
+    if (debounceButton(MIDDLE_BUTTON)) {
+      break; // Выход из функции и возврат в GUI
+    }
+    
+    delay(200); // Небольшая задержка для отрисовки
+  }
+
+  display.clearDisplay();
+  display.display(); // Очищаем экран после выхода из режима отображения Wi-Fi сетей
 }
 
 void send_IR() {
@@ -108,7 +170,7 @@ void display_IR() {
       
       irrecv.resume();  // Готовим приемник к следующему сигналу
     } else {
-      display.setCursor(75, 55);
+      display.setCursor(65, 55);
       display.print("Listening");
       display.display();
     }
@@ -172,7 +234,7 @@ void say_hello() {
 void setup() {
   Serial.begin(115200);
   initializeButtons();
-  
+  WiFi.mode(WIFI_STA);
   Serial.println("Инициализация дисплея...");
   if (!display.begin(i2c_Address)) {
     Serial.println("Не удалось инициализировать дисплей.");
