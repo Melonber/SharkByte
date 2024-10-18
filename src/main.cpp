@@ -2,6 +2,9 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
+#include <IRremoteESP8266.h>
+#include <IRrecv.h>
+#include <IRutils.h>
 
 /* Uncomment the initialize the I2C address, uncomment only one. If you get a totally blank screen try the other */
 #define i2c_Address 0x3C // Initialize with the I2C addr 0x3C Typically eBay OLED's
@@ -15,12 +18,17 @@
 #define DOWN_BUTTON 1
 #define UP_BUTTON 2
 
+#define RECIEVER_PIN 4
+IRrecv irrecv(RECIEVER_PIN);
+decode_results results;
+
 // Создаем объект дисплея
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 int currentSelection = 0;
 const int menuItems = 4;
 
+unsigned long lastReceivedValue = 0; // Для хранения последнего полученного значения
 
 bool debounceButton(int pin) {
   static unsigned long lastPress = 0; // Время последнего нажатия
@@ -31,56 +39,86 @@ bool debounceButton(int pin) {
   return false; // Кнопка не нажата
 }
 
-void initializeButtons(){
+void initializeButtons() {
   pinMode(MIDDLE_BUTTON, INPUT_PULLUP);
   pinMode(UP_BUTTON, INPUT_PULLUP);
   pinMode(DOWN_BUTTON, INPUT_PULLUP);
 }
 
-
-void GUI_menu(){
+void GUI_menu() {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(1);
 
   display.setCursor(0, 0);
-  if (currentSelection==0){
+  if (currentSelection == 0) {
     display.print(F("1)WiFi Networks<"));
-  } else{
+  } else {
     display.print(F("1)WiFi Networks"));
   }
 
   display.setCursor(0, 16);
-  if (currentSelection==1){
-  display.print(F("2)Send IR Signal<"));
-} else{
-  display.print(F("2)Send IR Signal"));
-}
+  if (currentSelection == 1) {
+    display.print(F("2)Send IR Signal<"));
+  } else {
+    display.print(F("2)Send IR Signal"));
+  }
 
   display.setCursor(0, 32);
-  if (currentSelection==2){
-  display.print(F("3)Display IR Signals<"));
-} else{
-  display.print(F("3)Display IR Signals"));
-}
+  if (currentSelection == 2) {
+    display.print(F("3)Display IR Signals<"));
+  } else {
+    display.print(F("3)Display IR Signals"));
+  }
   display.setCursor(0, 48);
   if (currentSelection == 3) {
-    display.print(F("4)Fourth Option<")); 
+    display.print(F("4)Fourth Option<"));
   } else {
     display.print(F("4)Fourth Option"));
   }
   display.display();
 }
 
-
-void show_wifi(){
+void show_wifi() {
   Serial.println("Displaying wifi");
 }
-void send_IR(){
-  Serial.println("Sending IR");
+
+void send_IR() {
+  // 
 }
-void display_IR(){
-  //Отображение IR сигналов
+
+void display_IR() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(1);
+  
+  while (true) {
+    if (irrecv.decode(&results)) {  // Если получен сигнал
+      display.clearDisplay(); // Очистка экрана перед выводом нового сигнала
+      display.setCursor(0, 0);
+      
+      // Выводим протокол
+      display.print(resultToHumanReadableBasic(&results));
+      display.println();
+      
+      // Выводим код в формате HEX
+      //display.print("Received HEX: 0x");
+      display.print(results.value, HEX); 
+      display.display();
+      
+      irrecv.resume();  // Готовим приемник к следующему сигналу
+    } else {
+      display.setCursor(75, 55);
+      display.print("Listening");
+      display.display();
+    }
+
+    // Выход из режима отображения сигналов, если нажата кнопка
+    if (debounceButton(MIDDLE_BUTTON)) {
+      break; // Выход из функции
+    }
+    delay(100); // Задержка, чтобы не перегружать дисплей
+  }
 }
 
 void handleSelection() {
@@ -92,6 +130,8 @@ void handleSelection() {
     show_wifi();
   } else if (currentSelection == 1) {
     send_IR();
+  } else if (currentSelection == 2) {
+    display_IR(); // Переход к отображению сигналов
   }
 
   display.display(); // Обновляем экран
@@ -129,36 +169,36 @@ void say_hello() {
   display.clearDisplay();
 }
 
-
 void setup() {
-  // Начинаем последовательную связь для отладки
   Serial.begin(115200);
-
   initializeButtons();
+  
   Serial.println("Инициализация дисплея...");
-
-  // Инициализация дисплея
-  if(!display.begin(i2c_Address)) {
-    Serial.println("Не удалось инициализировать дисплей. Проверьте соединения.");
-    while(1); // Зацикливаемся в случае ошибки
+  if (!display.begin(i2c_Address)) {
+    Serial.println("Не удалось инициализировать дисплей.");
+    while (1);
   }
-
   Serial.println("Дисплей инициализирован.");
+
+  // Инициализация ИК-приёмника
+  irrecv.enableIRIn(); // Включаем ИК-приёмник
 
   say_hello();
   GUI_menu();
 }
 
 void loop() {
-if (debounceButton(MIDDLE_BUTTON)) {
+  if (debounceButton(MIDDLE_BUTTON)) {
     Serial.println("Middle pressed!");
     handleSelection();
-}
+  }
+  
   if (debounceButton(DOWN_BUTTON)) {
     Serial.println("Down pressed!");
     currentSelection = (currentSelection + 1) % menuItems;
     GUI_menu();
   } 
+  
   if (debounceButton(UP_BUTTON)) {
     Serial.println("Up pressed !");
     currentSelection = (currentSelection - 1 + menuItems) % menuItems;
